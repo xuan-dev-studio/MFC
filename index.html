@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAC 地址格式转换器</title>
+<script>
+  // 在样式渲染前应用主题，避免闪烁
+  (function () {
+    try {
+      var saved = localStorage.getItem('mac-theme');
+      var theme = saved === 'light' || saved === 'dark' ? saved : 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+    } catch (e) {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  })();
+</script>
+<style>
+  :root {
+    --bg: #0f1420;
+    --glow: #1b2740;
+    --panel: #171d2c;
+    --panel-2: #1e2536;
+    --line: #2a3245;
+    --text: #e8ecf5;
+    --muted: #8b97b0;
+    --ghost: #4d5872;
+    --accent: #4f8cff;
+    --accent-soft: rgba(79, 140, 255, 0.14);
+    --on-accent: #ffffff;
+    --ok: #3ecf8e;
+    --warn: #ffb020;
+    --err: #ff6b6b;
+    --code-text: #b9c4dc;
+    --foot-text: #59637c;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    --mono: "Cascadia Mono", "JetBrains Mono", Consolas, "Courier New", monospace;
+  }
+
+  html[data-theme="light"] {
+    --bg: #eef2f9;
+    --glow: #dbe6fb;
+    --panel: #ffffff;
+    --panel-2: #f6f8fc;
+    --line: #e1e6f0;
+    --text: #1b2233;
+    --muted: #6b7688;
+    --ghost: #b3bccd;
+    --accent: #2f6fe4;
+    --accent-soft: rgba(47, 111, 228, 0.14);
+    --on-accent: #ffffff;
+    --ok: #17915f;
+    --warn: #c2760a;
+    --err: #d9483f;
+    --code-text: #4a5568;
+    --foot-text: #98a1b3;
+    --shadow: 0 10px 28px rgba(31, 51, 92, 0.10);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 40px 20px;
+    background-color: var(--bg);
+    background-image: radial-gradient(1200px 600px at 50% -10%, var(--glow) 0%, transparent 60%);
+    color: var(--text);
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, -apple-system, sans-serif;
+    display: flex;
+    justify-content: center;
+    transition: background-color .25s ease, color .25s ease;
+  }
+
+  .wrap { width: 100%; max-width: 720px; }
+
+  .topbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  h1 {
+    margin: 0 0 6px;
+    font-size: 24px;
+    letter-spacing: 0.5px;
+  }
+
+  .sub {
+    margin: 0 0 28px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .theme-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    color: var(--text);
+    padding: 0;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: background .25s ease, border-color .25s ease, color .25s ease, transform .15s ease;
+  }
+
+  .theme-btn:hover {
+    transform: translateY(-1px);
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 8px 22px var(--accent-soft);
+  }
+
+  .theme-btn:active { transform: translateY(0) scale(0.94); }
+
+  .theme-btn svg {
+    width: 19px;
+    height: 19px;
+    display: block;
+    transition: transform .3s ease, opacity .2s ease;
+  }
+
+  .theme-btn:hover svg { transform: rotate(35deg); }
+
+  /* 图标随主题切换：亮色显示月亮(点击去暗色)，暗色显示太阳 */
+  .theme-btn .icon-sun { display: none; }
+  html[data-theme="dark"] .theme-btn .icon-sun { display: block; }
+  html[data-theme="dark"] .theme-btn .icon-moon { display: none; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 22px;
+    margin-bottom: 18px;
+    box-shadow: var(--shadow);
+    transition: background .25s ease, border-color .25s ease;
+  }
+
+  label.field-label {
+    display: block;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .input-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .input-row input[type="text"] {
+    flex: 1 1 320px;
+    min-width: 0;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 16px;
+    letter-spacing: 1px;
+    padding: 12px 14px;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+
+  .input-row input[type="text"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  .check {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 14px;
+    user-select: none;
+    cursor: pointer;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .check input { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
+
+  .case-group {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--line);
+  }
+
+  .case-group.on { display: flex; }
+
+  .case-group .txt { font-size: 13px; color: var(--muted); }
+
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+
+  .seg button {
+    background: var(--panel-2);
+    border: 0;
+    color: var(--muted);
+    font-size: 13px;
+    padding: 6px 14px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background .15s, color .15s;
+  }
+
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button.active { background: var(--accent); color: var(--on-accent); }
+
+  .msg { margin-top: 12px; font-size: 13px; min-height: 18px; }
+  .msg.err { color: var(--err); }
+  .msg.ok { color: var(--ok); }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 15px 16px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    margin-bottom: 12px;
+  }
+
+  .row:last-child { margin-bottom: 0; }
+
+  .vendor { flex: 0 0 96px; font-size: 13px; color: var(--muted); }
+  .vendor b { display: block; color: var(--text); font-size: 14px; font-weight: 600; }
+  .vendor span { font-size: 11px; color: var(--muted); }
+
+  .value {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: var(--mono);
+    font-size: 18px;
+    letter-spacing: 1.5px;
+    word-break: break-all;
+  }
+
+  .value.empty { color: var(--ghost); letter-spacing: 1.5px; }
+
+  .copy {
+    flex: 0 0 auto;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    border-radius: 7px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .15s;
+  }
+
+  .copy:hover { border-color: var(--accent); color: var(--accent); }
+  .copy.done { border-color: var(--ok); color: var(--ok); }
+
+  .hint { margin-top: 16px; font-size: 12px; color: var(--muted); line-height: 1.9; }
+  .hint code {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 1px 6px;
+    font-family: var(--mono);
+    color: var(--code-text);
+  }
+
+  .foot { margin-top: 22px; text-align: center; font-size: 12px; color: var(--foot-text); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div>
+      <h1>MAC 地址格式转换器</h1>
+      <p class="sub">输入任意分隔符的 MAC 地址，自动转换为各厂商常用格式</p>
+    </div>
+    <button class="theme-btn" id="themeBtn" type="button" title="切换阳光 / 黑夜模式" aria-label="切换主题">
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+      </svg>
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="4.2"></circle>
+        <line x1="12" y1="1.8" x2="12" y2="3.6"></line>
+        <line x1="12" y1="20.4" x2="12" y2="22.2"></line>
+        <line x1="4.8" y1="4.8" x2="6" y2="6"></line>
+        <line x1="18" y1="18" x2="19.2" y2="19.2"></line>
+        <line x1="1.8" y1="12" x2="3.6" y2="12"></line>
+        <line x1="20.4" y1="12" x2="22.2" y2="12"></line>
+        <line x1="4.8" y1="19.2" x2="6" y2="18"></line>
+        <line x1="18" y1="6" x2="19.2" y2="4.8"></line>
+      </svg>
+    </button>
+  </div>
+
+  <div class="card">
+    <label class="field-label" for="macInput">MAC 地址</label>
+    <div class="input-row">
+      <input id="macInput" type="text" placeholder="XX:XX:XX:XX:XX:XX" autocomplete="off" spellcheck="false">
+      <label class="check">
+        <input id="caseToggle" type="checkbox">
+        大小写转换
+      </label>
+    </div>
+
+    <div class="case-group" id="caseGroup">
+      <span class="txt">输出大小写</span>
+      <div class="seg" id="caseSeg">
+        <button type="button" data-mode="upper" class="active">AABBCC (大写)</button>
+        <button type="button" data-mode="lower">aabbcc (小写)</button>
+      </div>
+    </div>
+
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div class="vendor"><b>锐捷</b><span>Ruijie</span></div>
+      <div class="value empty" id="outRuijie">XXXX.XXXX.XXXX</div>
+      <button class="copy" data-target="outRuijie">复制</button>
+    </div>
+    <div class="row">
+      <div class="vendor"><b>华为</b><span>Huawei</span></div>
+      <div class="value empty" id="outHuawei">XXXX-XXXX-XXXX</div>
+      <button class="copy" data-target="outHuawei">复制</button>
+    </div>
+    <div class="row">
+      <div class="vendor"><b>寰创</b><span>GBCOM</span></div>
+      <div class="value empty" id="outGBCOM">XXXX:XXXX:XXXX</div>
+      <button class="copy" data-target="outGBCOM">复制</button>
+    </div>
+
+    <div class="hint">
+      支持输入格式：<code>XX:XX:XX:XX:XX:XX</code> <code>XX-XX-XX-XX-XX-XX</code> <code>XXXX.XXXX.XXXX</code> <code>XXXX-XXXX-XXXX</code> <code>XXXXXXXXXXXX</code><br>
+      大小写转换勾选后，可在上方切换输出为全大写或全小写。
+    </div>
+  </div>
+
+  <div class="foot">
+    <a href="https://github.com/xuan-dev-studio/MAC/releases" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dashed var(--muted);">VER20261106P01R00</a>
+     &nbsp;|&nbsp; 
+    <a href="https://xuan-dev-studio.github.io/" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dashed var(--muted);">小小轩爱开发©2026</a>
+  </div>
+</div>
+
+<script>
+(function () {
+  var _v = "VER20261106P01R00";
+  var _a = [
+      "                  00001     00  10      00      101     00",
+      "             1   101 000   000  000     00     0000     0001   100",
+      "         00000   00   100100    001     00    100000    00000  100  00000",
+      "     100001     001    1000     000     00    00  001   001000 100     10000",
+      "      000001    00     00000    000     00   001  100   001 100100    100000",
+      "          1000 10    100  1001   00    100  000    100  001   0000  0000",
+      "               00   000    1001  100000001 10000000 000 001    000"
+  ].join("\n");
+  console.log("%c\n" + _a + "\n", "color:#2563eb;font-family:monospace;font-size:12px;line-height:1.4;");
+   console.log("%c MFC %c " + _v + " %c \u5c0f\u5c0f\u8f69\u7231\u5f00\u53d1\u00a92026 ",
+      "background:#2563eb;color:#fff;padding:3px 8px;border-radius:4px 0 0 4px;font-weight:700;font-size:13px;",
+      "background:#334155;color:#fff;padding:3px 8px;font-size:13px;",
+      "background:#64748b;color:#fff;padding:3px 8px;border-radius:0 4px 4px 0;font-size:13px;");
+  console.log("%cLearn Humbly, Build Boldly. \u8c26\u5b66\u52c7\u521b", "color:#2563eb;font-size:13px;font-weight:600;font-style:italic;padding:4px 0;");
+  const input = document.getElementById('macInput');
+  const msg = document.getElementById('msg');
+  const caseToggle = document.getElementById('caseToggle');
+  const caseGroup = document.getElementById('caseGroup');
+  const caseSeg = document.getElementById('caseSeg');
+
+  const outputs = {
+    outRuijie: document.getElementById('outRuijie'),
+    outHuawei: document.getElementById('outHuawei'),
+    outGBCOM: document.getElementById('outGBCOM')
+  };
+
+  const placeholders = {
+    outRuijie: 'XXXX.XXXX.XXXX',
+    outHuawei: 'XXXX-XXXX-XXXX',
+    outGBCOM: 'XXXX:XXXX:XXXX'
+  };
+
+  let mode = 'upper'; // upper | lower
+
+  // 解析 MAC：剥离分隔符，校验 12 位十六进制
+  function parseMac(raw) {
+    const hex = String(raw).replace(/[^0-9a-fA-F]/g, '');
+    if (!hex) return { ok: false, reason: 'empty' };
+    if (hex.length !== 12) {
+      return { ok: false, reason: 'length', length: hex.length };
+    }
+    return { ok: true, hex: hex.toUpperCase() };
+  }
+
+  function applyCase(hex) {
+    return mode === 'lower' ? hex.toLowerCase() : hex.toUpperCase();
+  }
+
+  function chunk3(hex, sep) {
+    return hex.match(/.{1,4}/g).join(sep);
+  }
+
+  function render() {
+    const res = parseMac(input.value);
+    const ids = Object.keys(outputs);
+
+    if (!res.ok) {
+      ids.forEach(function (id) {
+        outputs[id].textContent = placeholders[id];
+        outputs[id].classList.add('empty');
+      });
+      msg.className = 'msg';
+      if (res.reason === 'empty') {
+        msg.textContent = '';
+      } else {
+        msg.textContent = '格式错误：需为 12 位十六进制字符，当前 ' + res.length + ' 位';
+        msg.className = 'msg err';
+      }
+      return;
+    }
+
+    const hex = applyCase(res.hex);
+    const values = {
+      outRuijie: chunk3(hex, '.'),
+      outHuawei: chunk3(hex, '-'),
+      outGBCOM: chunk3(hex, ':')
+    };
+
+    ids.forEach(function (id) {
+      outputs[id].textContent = values[id];
+      outputs[id].classList.remove('empty');
+    });
+
+    msg.textContent = '解析成功：' + res.hex.slice(0, 2) + ':' + res.hex.slice(2, 4) + ':' + res.hex.slice(4, 6) + ':' + res.hex.slice(6, 8) + ':' + res.hex.slice(8, 10) + ':' + res.hex.slice(10, 12);
+    msg.className = 'msg ok';
+  }
+
+  // 输入实时转换
+  input.addEventListener('input', render);
+
+  // 复选框控制大小写选项的显示
+  caseToggle.addEventListener('change', function () {
+    caseGroup.classList.toggle('on', caseToggle.checked);
+    render();
+  });
+
+  // 大写 / 小写切换
+  caseSeg.addEventListener('click', function (e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    mode = btn.dataset.mode;
+    Array.prototype.forEach.call(caseSeg.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', b === btn);
+    });
+    render();
+  });
+
+  // 主题切换：阳光模式 / 黑夜模式
+  const themeBtn = document.getElementById('themeBtn');
+
+  function currentTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  }
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    var isDark = theme === 'dark';
+    // 按钮显示点击后将切换到的模式
+    themeBtn.setAttribute('aria-label', isDark ? '切换到阳光模式' : '切换到黑夜模式');
+    themeBtn.setAttribute('title', isDark ? '切换到阳光模式' : '切换到黑夜模式');
+    try { localStorage.setItem('mac-theme', theme); } catch (e) { /* ignore */ }
+  }
+
+  applyTheme(currentTheme());
+
+  themeBtn.addEventListener('click', function () {
+    applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
+  });
+
+  // 复制
+  document.querySelectorAll('.copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const el = outputs[btn.dataset.target];
+      const text = el.textContent.trim();
+      if (el.classList.contains('empty')) return;
+      const done = function () {
+        btn.textContent = '已复制';
+        btn.classList.add('done');
+        setTimeout(function () {
+          btn.textContent = '复制';
+          btn.classList.remove('done');
+        }, 1200);
+      };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text, done); });
+      } else {
+        fallbackCopy(text, done);
+      }
+    });
+  });
+
+  function fallbackCopy(text, cb) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); cb(); } catch (e) { /* ignore */ }
+    document.body.removeChild(ta);
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
