@@ -194,6 +194,7 @@
   .case-group {
     display: none;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
     margin-top: 14px;
     padding-top: 14px;
@@ -314,6 +315,10 @@
         <input id="caseToggle" type="checkbox">
         大小写转换
       </label>
+      <label class="check">
+        <input id="validToggle" type="checkbox">
+        合法性校验
+      </label>
     </div>
 
     <div class="case-group" id="caseGroup">
@@ -322,6 +327,13 @@
         <button type="button" data-mode="upper" class="active">AABBCC (大写)</button>
         <button type="button" data-mode="lower">aabbcc (小写)</button>
       </div>
+    </div>
+
+    <div class="case-group" id="validGroup">
+      <span class="txt">排除特殊地址</span>
+      <label class="check"><input id="exBroadcast" type="checkbox" checked>广播 FF:FF:FF:FF:FF:FF</label>
+      <label class="check"><input id="exMulticast" type="checkbox" checked>组播地址</label>
+      <label class="check"><input id="exLocal" type="checkbox" checked>本地管理地址</label>
     </div>
 
     <div class="msg" id="msg"></div>
@@ -343,15 +355,31 @@
       <div class="value empty" id="outGBCOM">XXXX:XXXX:XXXX</div>
       <button class="copy" data-target="outGBCOM">复制</button>
     </div>
+    <div class="row">
+      <div class="vendor"><b>Windows</b><span>系统格式</span></div>
+      <div class="value empty" id="outWindows">XX-XX-XX-XX-XX-XX</div>
+      <button class="copy" data-target="outWindows">复制</button>
+    </div>
+    <div class="row">
+      <div class="vendor"><b>Linux</b><span>系统格式</span></div>
+      <div class="value empty" id="outLinux">XX:XX:XX:XX:XX:XX</div>
+      <button class="copy" data-target="outLinux">复制</button>
+    </div>
+    <div class="row">
+      <div class="vendor"><b>无分隔符</b><span>Raw</span></div>
+      <div class="value empty" id="outRaw">XXXXXXXXXXXX</div>
+      <button class="copy" data-target="outRaw">复制</button>
+    </div>
 
     <div class="hint">
       支持输入格式：<code>XX:XX:XX:XX:XX:XX</code> <code>XX-XX-XX-XX-XX-XX</code> <code>XXXX.XXXX.XXXX</code> <code>XXXX-XXXX-XXXX</code> <code>XXXXXXXXXXXX</code><br>
-      大小写转换勾选后，可在上方切换输出为全大写或全小写。
+      大小写转换勾选后，可在上方切换输出为全大写或全小写。<br>
+      合法性校验勾选后，可按业务规则排除：广播地址 <code>FF:FF:FF:FF:FF:FF</code>、组播地址（首字节最低位 I/G 为 1）、本地管理地址（首字节次低位 U/L 为 1）。
     </div>
   </div>
 
   <div class="foot">
-    <a href="https://github.com/xuan-dev-studio/MAC/releases" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dashed var(--muted);">VER20261106P01R00</a>
+    <a href="https://github.com/xuan-dev-studio/MAC/releases" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dashed var(--muted);">VER20261107P01R01</a>
      &nbsp;|&nbsp; 
     <a href="https://xuan-dev-studio.github.io/" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dashed var(--muted);">小小轩爱开发©2026</a>
   </div>
@@ -359,7 +387,7 @@
 
 <script>
 (function () {
-  var _v = "VER20261106P01R00";
+  var _v = "VER20261107P01R01";
   var _a = [
       "                  00001     00  10      00      101     00",
       "             1   101 000   000  000     00     0000     0001   100",
@@ -380,17 +408,28 @@
   const caseToggle = document.getElementById('caseToggle');
   const caseGroup = document.getElementById('caseGroup');
   const caseSeg = document.getElementById('caseSeg');
+  const validToggle = document.getElementById('validToggle');
+  const validGroup = document.getElementById('validGroup');
+  const exBroadcast = document.getElementById('exBroadcast');
+  const exMulticast = document.getElementById('exMulticast');
+  const exLocal = document.getElementById('exLocal');
 
   const outputs = {
     outRuijie: document.getElementById('outRuijie'),
     outHuawei: document.getElementById('outHuawei'),
-    outGBCOM: document.getElementById('outGBCOM')
+    outGBCOM: document.getElementById('outGBCOM'),
+    outWindows: document.getElementById('outWindows'),
+    outLinux: document.getElementById('outLinux'),
+    outRaw: document.getElementById('outRaw')
   };
 
   const placeholders = {
     outRuijie: 'XXXX.XXXX.XXXX',
     outHuawei: 'XXXX-XXXX-XXXX',
-    outGBCOM: 'XXXX:XXXX:XXXX'
+    outGBCOM: 'XXXX:XXXX:XXXX',
+    outWindows: 'XX-XX-XX-XX-XX-XX',
+    outLinux: 'XX:XX:XX:XX:XX:XX',
+    outRaw: 'XXXXXXXXXXXX'
   };
 
   let mode = 'upper'; // upper | lower
@@ -413,15 +452,23 @@
     return hex.match(/.{1,4}/g).join(sep);
   }
 
+  function chunk2(hex, sep) {
+    return hex.match(/.{1,2}/g).join(sep);
+  }
+
+  function resetOutputs(ids) {
+    ids.forEach(function (id) {
+      outputs[id].textContent = placeholders[id];
+      outputs[id].classList.add('empty');
+    });
+  }
+
   function render() {
     const res = parseMac(input.value);
     const ids = Object.keys(outputs);
 
     if (!res.ok) {
-      ids.forEach(function (id) {
-        outputs[id].textContent = placeholders[id];
-        outputs[id].classList.add('empty');
-      });
+      resetOutputs(ids);
       msg.className = 'msg';
       if (res.reason === 'empty') {
         msg.textContent = '';
@@ -432,11 +479,37 @@
       return;
     }
 
+    // 地址属性：广播 / 组播（首字节最低位 I/G）/ 本地管理（首字节次低位 U/L）
+    const first = parseInt(res.hex.slice(0, 2), 16);
+    const isBroadcast = res.hex === 'FFFFFFFFFFFF';
+    const isMulticast = (first & 1) === 1;
+    const isLocal = (first & 2) !== 0;
+
+    // 合法性校验：按业务规则排除特殊地址
+    if (validToggle.checked) {
+      const reasons = [];
+      if (exBroadcast.checked && isBroadcast) {
+        reasons.push('广播地址');
+      } else {
+        if (exMulticast.checked && isMulticast) reasons.push('组播地址');
+        if (exLocal.checked && isLocal) reasons.push('本地管理地址');
+      }
+      if (reasons.length) {
+        resetOutputs(ids);
+        msg.textContent = '校验失败：' + reasons.join('、') + '，已按业务规则排除';
+        msg.className = 'msg err';
+        return;
+      }
+    }
+
     const hex = applyCase(res.hex);
     const values = {
       outRuijie: chunk3(hex, '.'),
       outHuawei: chunk3(hex, '-'),
-      outGBCOM: chunk3(hex, ':')
+      outGBCOM: chunk3(hex, ':'),
+      outWindows: chunk2(hex, '-'),
+      outLinux: chunk2(hex, ':'),
+      outRaw: hex
     };
 
     ids.forEach(function (id) {
@@ -444,7 +517,9 @@
       outputs[id].classList.remove('empty');
     });
 
-    msg.textContent = '解析成功：' + res.hex.slice(0, 2) + ':' + res.hex.slice(2, 4) + ':' + res.hex.slice(4, 6) + ':' + res.hex.slice(6, 8) + ':' + res.hex.slice(8, 10) + ':' + res.hex.slice(10, 12);
+    const addrType = isBroadcast ? '广播' : (isMulticast ? '组播' : '单播');
+    const addrScope = isLocal ? '本地管理' : '全局管理';
+    msg.textContent = '解析成功：' + res.hex.slice(0, 2) + ':' + res.hex.slice(2, 4) + ':' + res.hex.slice(4, 6) + ':' + res.hex.slice(6, 8) + ':' + res.hex.slice(8, 10) + ':' + res.hex.slice(10, 12) + '（' + addrType + ' · ' + addrScope + '）';
     msg.className = 'msg ok';
   }
 
@@ -466,6 +541,17 @@
       b.classList.toggle('active', b === btn);
     });
     render();
+  });
+
+  // 复选框控制合法性校验选项的显示
+  validToggle.addEventListener('change', function () {
+    validGroup.classList.toggle('on', validToggle.checked);
+    render();
+  });
+
+  // 排除规则变更时重新校验
+  [exBroadcast, exMulticast, exLocal].forEach(function (box) {
+    box.addEventListener('change', render);
   });
 
   // 主题切换：阳光模式 / 黑夜模式
